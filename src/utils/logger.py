@@ -133,7 +133,7 @@ class SignLanguageLogger:
 
     def realtime(self, message: str, **kwargs):
         """Log realtime-related message with rich formatting."""
-        self.logger.info(f"[realtime]📹 {message}[/realtime]", **kwargs)
+        self.logger.info(f"[realtime] {message}", **kwargs)
 
     def detection(self, message: str, **kwargs):
         """Log detection-related message with rich formatting."""

@@ -12,9 +12,7 @@ dependencies = [
     "label-studio>=1.20.0",
     "matplotlib>=3.10.5",
     "rich>=13.0.0",
-    "torch>=2.8.0",
     "torchinfo>=1.8.0",
-    "torchvision>=0.23.0",
 ]
 
 # pyproject.toml

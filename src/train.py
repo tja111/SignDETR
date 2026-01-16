@@ -15,15 +15,24 @@ if __name__ == '__main__':
     logger = get_logger("training")
     logger.print_banner()
     
+    # Setup device - use GPU if available
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    logger.info(f"🖥️ Using device: {device}")
+    if torch.cuda.is_available():
+        logger.info(f"🎮 GPU: {torch.cuda.get_device_name(0)}")
+        logger.info(f"💾 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+    
     train_dataset = DETRData('data/train') 
-    train_dataloader = DataLoader(train_dataset, batch_size=4, collate_fn=stacker, drop_last=True) 
+    train_dataloader = DataLoader(train_dataset, batch_size=4, collate_fn=stacker, drop_last=True, pin_memory=True if torch.cuda.is_available() else False) 
 
     test_dataset = DETRData('data/test', train=False) 
-    test_dataloader = DataLoader(test_dataset, batch_size=4, collate_fn=stacker, drop_last=True) 
+    test_dataloader = DataLoader(test_dataset, batch_size=4, collate_fn=stacker, drop_last=True, pin_memory=True if torch.cuda.is_available() else False) 
 
     num_classes = 3 
     model = DETR(num_classes=num_classes)
-    model.load_pretrained('pretrained/4426_model.pt')
+    model = model.to(device)  # Move model to GPU
+    # Skipping pretrained loading - training from scratch
+    # model.load_pretrained('pretrained/4426_model.pt')
     model.log_model_info()
     model.train() 
 
@@ -33,6 +42,7 @@ if __name__ == '__main__':
     weights= {'class_weighting': 1, 'bbox_weighting': 5, 'giou_weighting': 2}
     matcher = HungarianMatcher(weights)
     criterion = DETRLoss(num_classes=num_classes, matcher=matcher, weight_dict=weights, eos_coef=0.1)
+    criterion = criterion.to(device)  # Move loss function to GPU
 
     train_batches = len(train_dataloader)
     test_batches = len(test_dataloader)
@@ -62,6 +72,9 @@ if __name__ == '__main__':
                 # Create progress bar for current epoch
                 for batch_idx, batch in enumerate(train_dataloader): 
                     X, y = batch
+                    X = X.to(device)  # Move input to GPU
+                    # Move targets to GPU
+                    y = [{k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in t.items()} for t in y]
                     try: 
                         yhat = model(X) 
                         yhat_classes = yhat['pred_logits'] 
@@ -100,6 +113,9 @@ if __name__ == '__main__':
                 with torch.no_grad():
                     for batch_idx, batch in enumerate(test_dataloader):
                         X, y = batch
+                        X = X.to(device)  # Move input to GPU
+                        # Move targets to GPU
+                        y = [{k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in t.items()} for t in y]
                         yhat = model(X)
                         loss_dict = criterion(yhat, y) 
                         weight_dict = criterion.weight_dict

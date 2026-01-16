@@ -107,11 +107,12 @@ class DETRLoss(nn.Module):
         """Classification loss"""
         assert 'pred_logits' in yhat
         src_logits = yhat['pred_logits']
-        idx = self.get_matched_query_indices(indices)
+        device = src_logits.device
+        idx = self.get_matched_query_indices(indices, device)
 
-        target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(y, indices)])
+        target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(y, indices)]).to(device)
         target_classes = torch.full(src_logits.shape[:2], self.num_classes,
-                                  dtype=torch.int64, device=src_logits.device)
+                                  dtype=torch.int64, device=device)
         target_classes[idx] = target_classes_o
         
         loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes, self.empty_weight)
@@ -125,9 +126,10 @@ class DETRLoss(nn.Module):
            The target boxes are expected in format (center_x, center_y, w, h), normalized by the image size.
         """
         assert 'pred_boxes' in yhat
-        idx = self.get_matched_query_indices(indices)
+        device = yhat['pred_boxes'].device
+        idx = self.get_matched_query_indices(indices, device)
         src_boxes = yhat['pred_boxes'][idx]
-        target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(y, indices)], dim=0)
+        target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(y, indices)], dim=0).to(device)
 
         loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
 
@@ -140,10 +142,13 @@ class DETRLoss(nn.Module):
         losses['loss_giou'] = loss_giou.sum() / num_boxes
         return losses
 
-    def get_matched_query_indices(self, indices):
+    def get_matched_query_indices(self, indices, device=None):
         # Takes in [[query_index], [which_tgt_pos]] x Per Batch -> Returns [batch_index] [query_index] 
         batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.cat([src for (src, _) in indices])
+        if device is not None:
+            batch_idx = batch_idx.to(device)
+            src_idx = src_idx.to(device)
         return batch_idx, src_idx
 
     def forward(self, yhat, y):

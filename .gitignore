@@ -14,6 +14,10 @@ data/archive
 
 # data
 checkpoints
+data/train/
+data/test/
+logs/
+pretrained/
 # macOS system files
 .DS_Store
 .DS_Store?
