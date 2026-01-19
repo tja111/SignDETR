@@ -52,16 +52,20 @@ class DETRData(Dataset):
 
     def safe_transform(self, image, bboxes, labels, max_attempts=50):
         self.transform = A.Compose(
-            [   
-                A.Resize(500,500),
-                *([A.RandomCrop(width=224, height=224, p=0.33)] if self.train else []), # Example random crop
-                A.Resize(224,224),
-                *([A.HorizontalFlip(p=0.5)] if self.train else []),
-                *([A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.5, p=0.5)] if self.train else []),
-                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                A.ToTensorV2()
-            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])
-        )
+    [
+        A.Resize(224, 224),  # ✅ no crop
+        *([A.HorizontalFlip(p=0.5)] if self.train else []),
+        *([A.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2, p=0.5)] if self.train else []),
+        A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        A.ToTensorV2()
+    ],
+    bbox_params=A.BboxParams(
+        format='yolo',
+        label_fields=['class_labels'],
+        min_visibility=0.3
+    )
+)
+
         
         for attempt in range(max_attempts):
             try:

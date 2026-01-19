@@ -26,9 +26,9 @@ transforms = A.Compose(
         ]
     )
 
-model = DETR(num_classes=3)
+model = DETR(num_classes=2)
 model.eval()
-model.load_pretrained('pretrained/4426_model.pt')
+model.load_pretrained('checkpoints/99_model.pt')
 CLASSES = get_classes() 
 COLORS = get_colors() 
 
@@ -44,6 +44,9 @@ while cap.isOpened():
     if not ret:
         logger.error("Failed to read frame from camera")
         break
+    
+    # Mirror the frame horizontally
+    frame = cv2.flip(frame, 1)
         
     # Time the inference
     inference_start = time.time()
@@ -53,7 +56,7 @@ while cap.isOpened():
 
     probabilities = result['pred_logits'].softmax(-1)[:,:,:-1] 
     max_probs, max_classes = probabilities.max(-1)
-    keep_mask = max_probs > 0.8
+    keep_mask = max_probs > 0.80
 
     batch_indices, query_indices = torch.where(keep_mask) 
 

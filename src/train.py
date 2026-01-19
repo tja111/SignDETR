@@ -9,6 +9,7 @@ from utils.rich_handlers import TrainingHandler, rich_training_context
 import sys 
 import torch
 from utils.boxes import stacker
+from utils.setup import get_classes
 
 if __name__ == '__main__': 
     # Initialize logger and handlers
@@ -28,7 +29,7 @@ if __name__ == '__main__':
     test_dataset = DETRData('data/test', train=False) 
     test_dataloader = DataLoader(test_dataset, batch_size=4, collate_fn=stacker, drop_last=True, pin_memory=True if torch.cuda.is_available() else False) 
 
-    num_classes = 3 
+    num_classes = len(get_classes())
     model = DETR(num_classes=num_classes)
     model = model.to(device)  # Move model to GPU
     # Skipping pretrained loading - training from scratch
@@ -36,7 +37,7 @@ if __name__ == '__main__':
     model.log_model_info()
     model.train() 
 
-    opt = optim.Adam(model.parameters(), lr=1e-5)
+    opt = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(opt, len(train_dataloader)*30, T_mult=2)
 
     weights= {'class_weighting': 1, 'bbox_weighting': 5, 'giou_weighting': 2}
