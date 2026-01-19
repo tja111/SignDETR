@@ -84,7 +84,17 @@ class DETRData(Dataset):
     def __getitem__(self, idx): 
         self.label_path = os.path.join(self.labels_path, self.labels[idx]) 
         self.image_name = self.labels[idx].split('.')[0]
-        self.image_path = os.path.join(self.images_path, f'{self.image_name}.jpg') 
+        
+        # Support both .jpg and .jpeg extensions
+        jpg_path = os.path.join(self.images_path, f'{self.image_name}.jpg')
+        jpeg_path = os.path.join(self.images_path, f'{self.image_name}.jpeg')
+        
+        if os.path.exists(jpg_path):
+            self.image_path = jpg_path
+        elif os.path.exists(jpeg_path):
+            self.image_path = jpeg_path
+        else:
+            raise FileNotFoundError(f"No image found for {self.image_name} (.jpg or .jpeg)")
         
         img = Image.open(self.image_path)
         with open(self.label_path, 'r') as f: 
@@ -108,7 +118,7 @@ class DETRData(Dataset):
         return augmented_img_tensor, {'labels': labels, 'boxes': boxes}
 
 if __name__ == '__main__':
-    dataset = DETRData('data/train', train=True) 
+    dataset = DETRData('data/test', train=True) 
     dataloader = DataLoader(dataset, collate_fn=stacker, batch_size=4, drop_last=True)
 
     X, y = next(iter(dataloader))

@@ -20,7 +20,8 @@ logger.print_banner()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 logger.test(f"Using device: {device}")
 
-num_classes = 2
+CLASSES = get_classes()
+num_classes = len(CLASSES)
 test_dataset = DETRData('data/test', train=False) 
 test_dataloader = DataLoader(test_dataset, shuffle=True, batch_size=4, drop_last=True) 
 model = DETR(num_classes=num_classes)
@@ -41,7 +42,7 @@ inference_time = (time.time() - start_time) * 1000  # Convert to ms
 
 probabilities = result['pred_logits'].softmax(-1)[:,:,:-1] 
 max_probs, max_classes = probabilities.max(-1)
-keep_mask = max_probs > 0.80
+keep_mask = max_probs > 0.45
 batch_indices, query_indices = torch.where(keep_mask) 
 
 bboxes = rescale_bboxes(result['pred_boxes'][batch_indices, query_indices,:], (224,224))
