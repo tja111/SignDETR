@@ -137,5 +137,5 @@ class DETR(nn.Module):
 
 
 if __name__ == '__main__': 
-    model = DETR(num_classes=2)
+    model = DETR(num_classes=4)
     summary(model, (5,3,224,224))

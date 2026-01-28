@@ -26,7 +26,7 @@ transforms = A.Compose(
         ]
     )
 
-model = DETR(num_classes=2)
+model = DETR(num_classes=4)
 model.eval()
 model.load_pretrained('checkpoints/99_model.pt')
 CLASSES = get_classes() 
@@ -55,11 +55,18 @@ while cap.isOpened():
 
     probabilities = result['pred_logits'].softmax(-1)[:,:,:-1] 
     max_probs, max_classes = probabilities.max(-1)
-    keep_mask = max_probs > 0.35
+    keep_mask = max_probs > 0.5  # Set IoU threshold
 
-    batch_indices, query_indices = torch.where(keep_mask) 
+    batch_indices, query_indices = torch.where(keep_mask)
 
-    bboxes = rescale_bboxes(result['pred_boxes'][batch_indices, query_indices,:], (1920,1080))
+    # Limit to max_det = 1 (top confidence)
+    if len(query_indices) > 0:
+        top_idx = max_probs[batch_indices, query_indices].argmax()
+        batch_indices = batch_indices[top_idx:top_idx+1]
+        query_indices = query_indices[top_idx:top_idx+1]
+
+    height, width = frame.shape[:2]
+    bboxes = rescale_bboxes(result['pred_boxes'][batch_indices, query_indices,:], (width, height))
     classes = max_classes[batch_indices, query_indices]
     probas = max_probs[batch_indices, query_indices]
 
@@ -68,19 +75,25 @@ while cap.isOpened():
     for bclass, bprob, bbox in zip(classes, probas, bboxes): 
         bclass_idx = bclass.detach().numpy()
         bprob_val = bprob.detach().numpy() 
-        x1,y1,x2,y2 = bbox.detach().numpy()
-        
-        detections.append({
-            'class': CLASSES[bclass_idx],
-            'confidence': float(bprob_val),
-            'bbox': [float(x1), float(y1), float(x2), float(y2)]
-        })
-        
-        # Draw bounding boxes on frame
-        frame = cv2.rectangle(frame, (int(x1),int(y1)), (int(x2),int(y2)), COLORS[bclass_idx], 10)
-        frame_text = f"{CLASSES[bclass_idx]} - {round(float(bprob_val),4)}"
-        frame = cv2.rectangle(frame, (int(x1),int(y1)-100), (int(x1)+700,int(y1)), COLORS[bclass_idx], -1)
-        frame = cv2.putText(frame, frame_text, (int(x1),int(y1)), cv2.FONT_HERSHEY_DUPLEX, 2, (255,255,255), 4, cv2.LINE_AA)
+        x1, y1, x2, y2 = map(int, bbox.detach().numpy())
+        color = COLORS[bclass_idx]
+
+        # Draw a thinner bounding box
+        frame = cv2.rectangle(frame, (x1, y1), (x2, y2), color, 3)
+
+        # Prepare label text
+        label = f"{CLASSES[bclass_idx]}: {round(float(bprob_val), 2)}"
+
+        # Calculate text size
+        (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+        # Draw filled rectangle for label background (with some transparency)
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (x1, y1 - text_h - 10), (x1 + text_w + 10, y1), color, -1)
+        alpha = 0.6  # Transparency factor
+        frame = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
+
+        # Put label text
+        cv2.putText(frame, label, (x1 + 5, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255), 2, cv2.LINE_AA)
 
     # Calculate FPS
     frame_count += 1
@@ -103,4 +116,4 @@ while cap.isOpened():
         break
 
 cap.release() 
-cv2.destroyAllWindows() 
+cv2.destroyAllWindows()

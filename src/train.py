@@ -28,7 +28,7 @@ if __name__ == '__main__':
     test_dataset = DETRData('data/test', train=False) 
     test_dataloader = DataLoader(test_dataset, batch_size=4, collate_fn=stacker, drop_last=True, pin_memory=True if torch.cuda.is_available() else False) 
 
-    num_classes = 2 
+    num_classes = 4
     model = DETR(num_classes=num_classes)
     model = model.to(device)
     model.log_model_info()
