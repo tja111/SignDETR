@@ -23,10 +23,10 @@ if __name__ == '__main__':
         logger.info(f"💾 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
     
     train_dataset = DETRData('data/train') 
-    train_dataloader = DataLoader(train_dataset, batch_size=4, collate_fn=stacker, drop_last=True, pin_memory=True if torch.cuda.is_available() else False) 
+    train_dataloader = DataLoader(train_dataset, batch_size=64, collate_fn=stacker, drop_last=True, pin_memory=True if torch.cuda.is_available() else False)
 
-    test_dataset = DETRData('data/test', train=False) 
-    test_dataloader = DataLoader(test_dataset, batch_size=4, collate_fn=stacker, drop_last=True, pin_memory=True if torch.cuda.is_available() else False) 
+    test_dataset = DETRData('data/test', train=False)
+    test_dataloader = DataLoader(test_dataset, batch_size=64, collate_fn=stacker, drop_last=True, pin_memory=True if torch.cuda.is_available() else False)
 
     num_classes = 4
     model = DETR(num_classes=num_classes)
@@ -34,7 +34,7 @@ if __name__ == '__main__':
     model.log_model_info()
     model.train() 
 
-    opt = optim.Adam(model.parameters(), lr=1e-5)
+    opt = optim.Adam(model.parameters(), lr=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(opt, len(train_dataloader)*30, T_mult=2)
 
     weights= {'class_weighting': 1, 'bbox_weighting': 5, 'giou_weighting': 2}
@@ -49,10 +49,10 @@ if __name__ == '__main__':
     # Log training configuration
     training_config = {
         "Total Epochs": epochs,
-        "Batch Size": 4,
+        "Batch Size": 64,
         "Train Batches": train_batches,
         "Test Batches": test_batches,
-        "Learning Rate": 1e-5,
+        "Learning Rate": 1e-4,
         "Optimizer": "Adam",
         "Scheduler": "CosineAnnealingWarmRestarts"
     }
