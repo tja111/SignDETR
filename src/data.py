@@ -52,16 +52,20 @@ class DETRData(Dataset):
 
     def safe_transform(self, image, bboxes, labels, max_attempts=50):
         self.transform = A.Compose(
-            [   
-                A.Resize(500,500),
-                *([A.RandomCrop(width=224, height=224, p=0.33)] if self.train else []), # Example random crop
-                A.Resize(224,224),
-                *([A.HorizontalFlip(p=0.5)] if self.train else []),
-                *([A.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.5, p=0.5)] if self.train else []),
-                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                A.ToTensorV2()
-            ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])
-        )
+    [
+        A.Resize(224, 224),  # ✅ no crop
+        *([A.HorizontalFlip(p=0.5)] if self.train else []),
+        *([A.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2, p=0.5)] if self.train else []),
+        A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        A.ToTensorV2()
+    ],
+    bbox_params=A.BboxParams(
+        format='yolo',
+        label_fields=['class_labels'],
+        min_visibility=0.3
+    )
+)
+
         
         for attempt in range(max_attempts):
             try:
@@ -80,7 +84,17 @@ class DETRData(Dataset):
     def __getitem__(self, idx): 
         self.label_path = os.path.join(self.labels_path, self.labels[idx]) 
         self.image_name = self.labels[idx].split('.')[0]
-        self.image_path = os.path.join(self.images_path, f'{self.image_name}.jpg') 
+        
+        # Support both .jpg and .jpeg extensions
+        jpg_path = os.path.join(self.images_path, f'{self.image_name}.jpg')
+        jpeg_path = os.path.join(self.images_path, f'{self.image_name}.jpeg')
+        
+        if os.path.exists(jpg_path):
+            self.image_path = jpg_path
+        elif os.path.exists(jpeg_path):
+            self.image_path = jpeg_path
+        else:
+            raise FileNotFoundError(f"No image found for {self.image_name} (.jpg or .jpeg)")
         
         img = Image.open(self.image_path)
         with open(self.label_path, 'r') as f: 
@@ -104,7 +118,7 @@ class DETRData(Dataset):
         return augmented_img_tensor, {'labels': labels, 'boxes': boxes}
 
 if __name__ == '__main__':
-    dataset = DETRData('data/train', train=True) 
+    dataset = DETRData('data/test', train=True) 
     dataloader = DataLoader(dataset, collate_fn=stacker, batch_size=4, drop_last=True)
 
     X, y = next(iter(dataloader))

@@ -16,25 +16,33 @@ detection_handler = DetectionHandler()
 
 logger.print_banner()
 
-num_classes = 3
+# Setup device
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+logger.test(f"Using device: {device}")
+
+CLASSES = get_classes()
+num_classes = len(CLASSES)
 test_dataset = DETRData('data/test', train=False) 
 test_dataloader = DataLoader(test_dataset, shuffle=True, batch_size=4, drop_last=True) 
 model = DETR(num_classes=num_classes)
+model.load_pretrained('checkpoints/99_model.pt')
+model = model.to(device)
 model.eval()
-model.load_pretrained('pretrained/4426_model.pt')
 
 X, y = next(iter(test_dataloader))
+X = X.to(device)  # Move input to GPU
 
 logger.test("Running inference on test batch...")
 
 import time
 start_time = time.time()
-result = model(X) 
+with torch.no_grad():
+    result = model(X) 
 inference_time = (time.time() - start_time) * 1000  # Convert to ms
 
 probabilities = result['pred_logits'].softmax(-1)[:,:,:-1] 
 max_probs, max_classes = probabilities.max(-1)
-keep_mask = max_probs > 0.95
+keep_mask = max_probs > 0.45
 batch_indices, query_indices = torch.where(keep_mask) 
 
 bboxes = rescale_bboxes(result['pred_boxes'][batch_indices, query_indices,:], (224,224))
@@ -45,30 +53,33 @@ probas = max_probs[batch_indices, query_indices]
 detection_handler.log_inference_time(inference_time)
 
 # Prepare detection results for logging
+CLASSES = get_classes()
 detections = []
 for i in range(len(classes)):
-    detections.append({
-        'class': get_classes()[classes[i].item()],
-        'confidence': probas[i].item(),
-        'bbox': bboxes[i].detach().numpy().tolist()
-    })
+    class_idx = classes[i].item()
+    if class_idx < len(CLASSES):  # Safety check
+        detections.append({
+            'class': CLASSES[class_idx],
+            'confidence': probas[i].item(),
+            'bbox': bboxes[i].detach().cpu().numpy().tolist()
+        })
 
 # Log detection results
 detection_handler.log_detections(detections) 
 
-CLASSES = get_classes()
-
 fig, ax = plt.subplots(2,2) 
 axs = ax.flatten()
-for idx, (img, ax) in enumerate(zip(X, axs)): 
+for idx, (img, ax) in enumerate(zip(X.cpu(), axs)): 
     ax.imshow(img.permute(1,2,0))
     for batch_idx, box_class, box_prob, bbox in zip(batch_indices, classes, probas, bboxes): 
         if batch_idx == idx: 
-            xmin, ymin, xmax, ymax = bbox.detach().numpy()
-            print(xmin, ymin, xmax, ymax) 
-            ax.add_patch(plt.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin, fill=False, color=(0.000, 0.447, 0.741), linewidth=3))
-            text = f'{CLASSES[box_class]}: {box_prob:0.2f}'
-            ax.text(xmin, ymin, text, fontsize=15, bbox=dict(facecolor='yellow', alpha=0.5))
+            xmin, ymin, xmax, ymax = bbox.detach().cpu().numpy()
+            print(xmin, ymin, xmax, ymax)
+            class_idx = box_class.item()
+            if class_idx < len(CLASSES):
+                ax.add_patch(plt.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin, fill=False, color=(0.000, 0.447, 0.741), linewidth=3))
+                text = f'{CLASSES[class_idx]}: {box_prob:0.2f}'
+                ax.text(xmin, ymin, text, fontsize=15, bbox=dict(facecolor='yellow', alpha=0.5))
 
 fig.tight_layout() 
-plt.show()     
+plt.show()
